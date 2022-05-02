@@ -40,7 +40,7 @@ def data_transforms_img(img_size):
     }
     return data_transforms
 if __name__ == "__main__":
-    bucket = 'sagemaker-studio-475719114507-5isnds6vsgd'
+    bucket = 'bucket-name'
     subfolder = 'data'
     print(bucket)
     conn = boto3.client('s3')
