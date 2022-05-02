@@ -3,12 +3,19 @@ import os
 
 import pandas as pd
 import torch
-from Module import EMB_model,EMB_Dataset
-from make_csv import make_csv_file
+from Module import EMB_model,aws_EMB_Dataset
+from make_csv import aws_make_csv_file
 from tqdm import tqdm
 
 import cv2
 from torch.utils.data import Dataset, DataLoader
+
+# for AWS
+import boto3
+import s3fs
+from sagemaker import get_execution_role
+role = get_execution_role()
+
 parser = argparse.ArgumentParser(description= 'inference code')
 parser.add_argument('--file_path', type = str, help = 'inference file path')
 args = parser.parse_args()
@@ -33,7 +40,12 @@ def data_transforms_img(img_size):
     }
     return data_transforms
 if __name__ == "__main__":
-
+    bucket = 'sagemaker-studio-475719114507-5isnds6vsgd'
+    subfolder = 'data'
+    print(bucket)
+    conn = boto3.client('s3')
+    fs = s3fs.S3FileSystem()
+    
     encoder = LabelEncoder()
 
     total = 0
@@ -43,12 +55,14 @@ if __name__ == "__main__":
     predict = []
     model = EMB_model(model_name=best_pd['model_name'][0], target_size=6)
     # infer_path = args.file_path
-    infer_path =  'C:/Users/ikh/Downloads/test-20220420T054816Z-001/test/'
-    infer_df = make_csv_file(infer_path)
+    infer_path =  '/test/'
+    infer_df = aws_make_csv_file(infer_path, conn, bucket, subfolder)
     infer_df['new_labels'] = encoder.fit_transform(infer_df['labels'])
 
     data_transforms = data_transforms_img(int(best_pd['image_size'][0]))
-    infer = EMB_Dataset(infer_df, transforms=data_transforms['valid'])
+    
+    infer = aws_EMB_Dataset(infer_df, fs, transforms=data_transforms['valid'])
+    
     valid_loader = DataLoader(infer, batch_size=8, num_workers=1, shuffle=True, pin_memory=True, drop_last=True)
     with torch.no_grad():
         best_model = '{}/{}best{}_{}_{}'.format(best_pd['model_name'][0], best_pd['model_name'][0], best_pd['epoch'][0], best_pd['image_size'][0],best_pd['date'][0])
