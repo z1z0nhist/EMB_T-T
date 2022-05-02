@@ -5,7 +5,6 @@ import sys
 import pandas as pd
 import numpy as np
 
-import mlflow
 from tqdm import tqdm
 import argparse
 import torch
@@ -17,27 +16,38 @@ from collections import defaultdict
 import gc
 from torch.optim import lr_scheduler
 from sklearn.preprocessing import LabelEncoder
-import mlflow.pytorch
 from datetime import datetime
 from training import training_epoch,val_epoch
 from itertools import product
-from make_csv import make_csv_file
-from Module import EMB_model,EMB_Dataset
+from make_csv import aws_make_csv_file
+from Module import EMB_model,EMB_Dataset, aws_EMB_Dataset
 from shutil import copyfile
 from torch.utils.data import Dataset, DataLoader
 import albumentations as A
 from albumentations.pytorch import transforms
 
+import boto3
+import s3fs
+from sagemaker import get_execution_role
+role = get_execution_role()
+
+
 parser = argparse.ArgumentParser(description= 'train code')
 parser.add_argument('--train_path', type = str, help = 'inference file path')
 parser.add_argument('--valid_path', type = str, help = 'inference file path')
 args = parser.parse_args()
-
-config = config = {
+print(args)
+config = {
     "model_name" : ['tf_efficientnet_b5_ns','resnet18','resnet50'],
     "epoch" : [1,2],
     "img_size" : [224,448]
 }
+# config = {
+#     "model_name" : ['tf_efficientnet_b5_ns'],
+#     "epoch" : [1],
+#     "img_size" : [224]
+# }
+
 
 now = datetime.now()
 
@@ -118,21 +128,8 @@ def run_training(model, optimizer, scheduler, device, num_epochs):
             best_epoch_loss = val_epoch_loss
             best_model_wts = copy.deepcopy(model.state_dict())
             best_epoch = epoch
-            # PATH = "{}/Loss{:.4f}_epoch{:.0f}.bin".format(model_name, best_epoch_loss, epoch)
-            # if not os.path.isdir('{0}/'.format(model_name)):
-            #     os.mkdir('{0}/'.format(model_name))
-            # torch.save(model.state_dict(), PATH)
-            # # Save a model file from the current directory
-            # print(f"Model Saved")
-        print()
-        #
-        # end = time.time()
-        # time_elapsed = end - start
-        # print('Training complete in {:.0f}h {:.0f}m {:.0f}s'.format(
-        #     time_elapsed // 3600, (time_elapsed % 3600) // 60, (time_elapsed % 3600) % 60))
-        # print("Best Loss: {:.4f}".format(best_epoch_loss))
 
-        # load best model weights
+        print()
         model.load_state_dict(best_model_wts)
 
     PATH = "{}/{}best{}_{}_{}_{}_{}.bin".format(model_name,model_name,best_epoch,im_szie,now.year,now.month,now.day)
@@ -144,18 +141,25 @@ def run_training(model, optimizer, scheduler, device, num_epochs):
 
 if __name__ == "__main__":
     result = []
-    # train_path = 'C:/Users/ikh/Downloads/train-20220420T054817Z-001/train'
-    # valid_path = 'C:/Users/ikh\Downloads/test-20220420T054816Z-001/test'
     train_path = args.train_path
     valid_path = args.valid_path
-
-    train_df = make_csv_file(train_path)
-    valid_df = make_csv_file(valid_path)
-
+#     for AWS . 
+    bucket = train_path.split('/')[-2]
+    subfolder = train_path.split('/')[-1]
+    print(bucket)
+    conn = boto3.client('s3')
+    fs = s3fs.S3FileSystem()
+    
+    train_df = aws_make_csv_file('/train/', conn, bucket, subfolder)
+    valid_df = aws_make_csv_file('/test/', conn, bucket, subfolder)
+    
+#     train_df = make_csv_file(train_path)
+#     valid_df = make_csv_file(valid_path)
+    
     encoder = LabelEncoder()
     train_df['new_labels'] = encoder.fit_transform(train_df['labels'])
     valid_df['new_labels'] = encoder.fit_transform(valid_df['labels'])
-
+    
     target_size = len(encoder.classes_)
     for i in total:
         model_name = i[0]
@@ -167,10 +171,10 @@ if __name__ == "__main__":
         model = EMB_model(model_name=model_name, target_size=target_size)
         if torch.cuda.is_available():
             model = model.to(device)
-        Train = EMB_Dataset(train_df, transforms=data_transforms['train'])
+        Train = aws_EMB_Dataset(train_df, fs, transforms=data_transforms['train'])
         Train_loader = DataLoader(Train, batch_size=8, num_workers=2, shuffle=True, pin_memory=True, drop_last=True)
 
-        valid = EMB_Dataset(valid_df, transforms=data_transforms['valid'])
+        valid = aws_EMB_Dataset(valid_df, fs, transforms=data_transforms['valid'])
         valid_loader = DataLoader(valid, batch_size=8, num_workers=2, shuffle=True, pin_memory=True, drop_last=True)
 
         optimizer = optim.Adam(model.parameters(), lr=0.0001,
