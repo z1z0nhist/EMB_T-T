@@ -1,0 +1,15 @@
+artifact_uri: file:///C:/Users/ikh/PycharmProjects/docker_example/mlruns/0/2f2629077acb4b5aa8e329ff0ac6de3b/artifacts
+end_time: 1650504486404
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+name: ''
+run_id: 2f2629077acb4b5aa8e329ff0ac6de3b
+run_uuid: 2f2629077acb4b5aa8e329ff0ac6de3b
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1650504377663
+status: 3
+tags: []
+user_id: ikh
