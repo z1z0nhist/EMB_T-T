@@ -17,7 +17,6 @@ from collections import defaultdict
 import gc
 from torch.optim import lr_scheduler
 from sklearn.preprocessing import LabelEncoder
-import mlflow.pytorch
 from datetime import datetime
 from training import training_epoch,val_epoch
 from itertools import product
